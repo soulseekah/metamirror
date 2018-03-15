@@ -43,25 +43,25 @@ class Mirror {
 	public $whitelist = [];
 
 	/**
-	 * @var string The cast type.
+	 * @var string The value type.
 	 */
-	public $cast = '';
+	public $type = '';
 
 	/**
-	 * @var int[] Cast arguments.
+	 * @var int[] Type arguments.
 	 */
-	public $args = [];
+	public $typeargs = [];
 
 	/**
 	 * A mirror definition object.
 	 *
 	 * @param string $meta_table The meta table we are mirroring.
-	 * @param string $cast The cast to apply/column type.
-	 * @param array $args Precision, length, etc. arguments.
+	 * @param string $type The type to apply/column type.
+	 * @param array $typeargs Precision, length, etc. arguments.
 	 *
 	 * @throws metamirror/Error If mirror cannot be created.
 	 */
-	public function __construct( string $meta_table, string $cast, array $args = [] ) {
+	public function __construct( string $meta_table, string $type, array $typeargs = [] ) {
 		global $wpdb;
 
 		$tables = apply_filters( 'metamirror/tables', [ $wpdb->postmeta, $wpdb->usermeta, $wpdb->commentmeta, $wpdb->termmeta ] );
@@ -91,28 +91,32 @@ class Mirror {
 		$this->meta_id   = $meta_id_maps[ $meta_table ];
 		$this->object_id = $object_id_maps[ $meta_table ];
 
-		$casts = [ 'INTEGER', 'VARCHAR', 'FLOAT', 'DECIMAL', 'LONGTEXT', 'BIT' ];
-		$casts = apply_filters( 'metamirror/casts', $casts );
+		$types = [ 'INTEGER', 'VARCHAR', 'FLOAT', 'DECIMAL', 'LONGTEXT', 'BIT' ];
+		$types = apply_filters( 'metamirror/types', $types );
 
-		if ( ! in_array( strtoupper( $cast ), $casts ) ) {
-			throw new Error( "Casting to $cast for is not supported." );
+		if ( ! in_array( strtoupper( $type ), $types ) ) {
+			throw new Error( "typeing to $type for is not supported." );
 		}
 
-		$this->cast = $cast;
+		$this->type = $type;
 
 		/** Cleanup */
-		$this->args = array_filter( array_map( 'intval', $args ), 'strlen' );
+		$this->typeargs = array_filter( array_map( 'intval', $typeargs ), 'strlen' );
 
 		$meta_table = preg_replace( "/^$wpdb->prefix/", '', $meta_table );
 
-		$this->mirror_table = sprintf( '%smm_%s_%s', $wpdb->prefix, $meta_table, implode( '_', array_merge( [ strtolower( $this->cast ) ], $this->args ) ) );
+		$this->mirror_table = sprintf( '%smm_%s_%s', $wpdb->prefix, $meta_table, implode( '_', array_merge( [ strtolower( $this->type ) ], $this->typeargs ) ) );
 		$this->id = &$this->mirror_table;
 	}
 
 	/**
 	 * Whitelist meta keys for this mirror.
 	 *
-	 * Regular expressions are supported.
+	 * LIKE placeholders are supported.
+	 *
+	 * After adding a new meta_key that's not been mirrored
+	 * you will need to call `metamirror/Core::commit()` to
+	 * recreate the mirror tables.
 	 *
 	 * @param string $meta_key The meta_key
 	 *

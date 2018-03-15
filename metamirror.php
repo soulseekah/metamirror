@@ -71,7 +71,12 @@ class Core {
 	 * @throws metamirror/Error When calling inapproriately.
 	 */
 	public static function commit() : void {
-		if ( did_action( 'init' ) && ! defined( 'DOING_TESTS' ) ) {
+		if ( defined( 'DOING_TESTS' ) ) {
+			self::_commit();
+			return;
+		}
+
+		if ( did_action( 'init' ) ) {
 			throw new Error( 'Committing mirrors should be done in `init` or earlier' );
 		}
 		
@@ -86,7 +91,7 @@ class Core {
 	 * @throws metamirror/Error When calling inapproriately.
 	 */
 	public static function _commit() : void {
-		if ( current_action() !== 'init' && defined( 'DOING_TESTS' ) ) {
+		if ( current_action() !== 'init' && ! defined( 'DOING_TESTS' ) ) {
 			throw new Error( 'Committing mirrors should be done in `init` or earlier' );
 		}
 
@@ -102,10 +107,34 @@ class Core {
 				"{$mirror->meta_id} INT NOT NULL",
 				"{$mirror->object_id} INT NOT NULL",
 				"{$mirror->meta_key} VARCHAR(255)",
-				"{$mirror->meta_value} {$mirror->cast}"
-					. ( $mirror->args ? sprintf( '(%s)', implode( ',', $mirror->args ) ) : '' )
+				"{$mirror->meta_value} {$mirror->type}"
+					. ( $mirror->typeargs ? sprintf( '(%s)', implode( ',', $mirror->typeargs ) ) : '' )
 			] );
-			$wpdb->query( "$create ($columns)" );
+
+			$like_columns = implode( ', ', [
+				$mirror->meta_id,
+				$mirror->object_id,
+				$mirror->meta_key,
+				$mirror->meta_value // @todo CAST?
+			] );
+
+			/** Prefill. */
+			$like = "SELECT $like_columns FROM $mirror->meta_table";
+
+			if ( $mirror->whitelist ) {
+				$meta_keys = array();
+				foreach ( $mirror->whitelist as $meta_key ) {
+					$meta_keys []= $wpdb->prepare( "$mirror->meta_key LIKE %s", $meta_key );
+				}
+				$like .= sprintf( " WHERE %s", implode( ' OR ', $meta_keys ) );
+			}
+
+			$wpdb->query( "$create ($columns) $like;" );
+
+			$warnings = [];
+			if ( ( $error = $wpdb->last_error ) || ( $warnings = $wpdb->get_results( "SHOW WARNINGS;" ) ) ) {
+				throw new Error( sprintf( "Errors committing mirror $mirror->id: %s", var_export( [ $error, $warnings ], true ) ) ); 
+			}
 		}
 	}
 

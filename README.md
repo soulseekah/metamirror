@@ -20,6 +20,8 @@ Drop in as a plugin.
 
 ```php
 $mirror = new metamirror\Mirror( $wpdb->postmeta, 'INTEGER' );
+$mirror->add_meta_key( 'pageviews' );
+$mirror->add_meta_key( 'vote%' );
 metamirror\Core::add( $mirror );
 metamirror\Core::commit();
 ```
