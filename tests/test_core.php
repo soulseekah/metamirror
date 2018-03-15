@@ -27,15 +27,6 @@ class TestCore extends \WP_UnitTestCase {
 		Core::add( $this->mirror );
 	}
 
-	public function test_commit_basic() {
-		Core::add( $this->mirror );
-		Core::commit();
-
-		global $wpdb;
-
-		$this->assertNotNull( $wpdb->get_row( $wpdb->prepare( 'SHOW TABLES LIKE %s', $this->mirror->mirror_table ) ) );
-	}
-
 	public function test_commit_mirror_meta() {
 		update_post_meta( $this->post_id, 'test1', '1' );
 
