@@ -26,7 +26,7 @@ class Core {
 	 * Adds the needed actions, filters.
 	 */
 	public static function infuse() : void {
-		add_filter( 'query', [ new Query( Core::$mirrors ), 'route' ] );
+		add_filter( 'query', [ new Query( Core::$mirrors ), 'rewrite' ] );
 	}
 
 	/**

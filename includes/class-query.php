@@ -17,15 +17,19 @@ class Query {
 	}
 
 	/**
-	 * Reroute the query.
+	 * Rewrite the query.
 	 *
-	 * Rewrite meta without breaking it ;)
+	 * Route meta without breaking it ;)
 	 *
 	 * @param string $query The SQL query.
 	 *
 	 * @return string The rewritten SQL.
 	 */
-	public function route( string $query ) : string {
+	public function rewrite( string $query ) : string {
+		foreach ( $this->mirrors as $mirror ) {
+			/** Can't be this simple, can it? */
+			$query = str_replace( $mirror->meta_table, $mirror->mirror_table, $query );
+		}
 		return $query;
 	}
 }
