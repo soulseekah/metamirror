@@ -1,5 +1,7 @@
 # metamirror
 
+[![Build Status](https://travis-ci.org/soulseekah/metamirror.svg?branch=master)](https://travis-ci.org/soulseekah/metamirror)
+
 An experiment that mirrors subsets of WordPress meta tables for cast-free indexing.
 
 ## Background
