@@ -115,7 +115,7 @@ class Core {
 				$mirror->meta_id,
 				$mirror->object_id,
 				$mirror->meta_key,
-				$mirror->meta_value // @todo CAST?
+				$mirror->meta_value
 			] );
 
 			/** Prefill. */
