@@ -10,22 +10,24 @@ class TestCore extends \WP_UnitTestCase {
 		$this->mirror = new Mirror( $wpdb->postmeta, 'VARCHAR', [ 16 ] );
 	}
 
-	public function test_add_mirror() {
-		Core::add_mirror( $this->mirror );
+	public function test_add() {
+		Core::add( $this->mirror );
 
-		$this->assertSame( $this->mirror, Core::get_mirror( $this->mirror->id ) );
-		$this->assertNull( Core::get_mirror( 'world' ) );
+		$this->assertSame( $this->mirror, Core::get( $this->mirror->id ) );
+		$this->assertNull( Core::get( 'world' ) );
 
 		$this->expectException( Error::class );
 		
-		Core::add_mirror( $this->mirror );
+		Core::add( $this->mirror );
 	}
 
 	public function test_commit() {
-		Core::add_mirror( $this->mirror );
+		Core::add( $this->mirror );
 
-		Core::commit_mirrors();
+		Core::commit();
 
 		global $wpdb;
+
+		$this->assertNotEmpty( $wpdb->get_row( $wpdb->prepare( 'SHOW TABLES LIKE %s', $this->mirror->meta_table ) ) );
 	}
 }

@@ -38,12 +38,12 @@ class Core {
 	 * @throws metamirror\Error When adding after init.
 	 * @throws metamirror\Error If the mirror already exists.
 	 */
-	public static function add_mirror( Mirror $mirror ) : void {
+	public static function add( Mirror $mirror ) : void {
 		if ( did_action( 'init' ) && ! defined( 'DOING_TESTS' ) ) {
 			throw new Error( 'Adding mirrors should be done in `init` or earlier' );
 		}
 
-		if ( self::get_mirror( $mirror->id ) ) {
+		if ( self::get( $mirror->id ) ) {
 			throw new Error( "Mirror {$mirror->id} already exists. Whitelist additional keys instead." );
 		}
 
@@ -57,7 +57,7 @@ class Core {
 	 *
 	 * @return metamirror\Mirror|null The mirror or null if not exists.
 	 */
-	public static function get_mirror( string $id ) {
+	public static function get( string $id ) {
 		return isset( self::$mirrors[ $id ] ) ? self::$mirrors[ $id ] : null;
 	}
 
@@ -70,22 +70,22 @@ class Core {
 	 *
 	 * @throws metamirror/Error When calling inapproriately.
 	 */
-	public static function commit_mirrors() : void {
+	public static function commit() : void {
 		if ( did_action( 'init' ) && ! defined( 'DOING_TESTS' ) ) {
 			throw new Error( 'Committing mirrors should be done in `init` or earlier' );
 		}
 		
-		add_action( 'init', [ Core::class, '_commit_mirrors' ] );
+		add_action( 'init', [ Core::class, '_commit' ] );
 	}
 
 	/**
 	 * Does a commit once.
 	 *
-	 * Called on `init`. Do not call yourself. Use `commit_mirrors()` instead.
+	 * Called on `init`. Do not call yourself. Use `commit()` instead.
 	 *
 	 * @throws metamirror/Error When calling inapproriately.
 	 */
-	public static function _commit_mirrors() : void {
+	public static function _commit() : void {
 		if ( current_action() !== 'init' && defined( 'DOING_TESTS' ) ) {
 			throw new Error( 'Committing mirrors should be done in `init` or earlier' );
 		}
@@ -98,9 +98,13 @@ class Core {
 
 			/** Create it. */
 			$create = "CREATE TABLE $mirror->mirror_table";
-			$columns = [
-				"{$mirror->meta_id}",
-			];
+			$columns = implode( ', ', [
+				"{$mirror->meta_id} INT NOT NULL",
+				"{$mirror->object_id} INT NOT NULL",
+				"{$mirror->meta_key} VARCHAR(255)",
+				"{$mirror->meta_value} {$mirror->cast}"
+					. ( $mirror->args ? sprintf( '(%s)', implode( ',', $mirror->args ) ) : '' )
+			] );
 			$wpdb->query( "$create ($columns)" );
 		}
 	}

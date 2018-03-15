@@ -11,3 +11,21 @@ Consider plugins that store numeric values like ratings, pageviews, votecounts. 
 ## Proposed solution
 
 Create shadow meta table(s) that house casted values in with an index on them. Add conditional triggers on the core meta tables that insert/delete/update the values into the mirrors with a cast. Add SQL rewriting for SELECT queries detecting meta keys and "routing" them to the correct mirror table.
+
+# Installation
+
+Drop in as a plugin.
+
+# Usage
+
+```php
+$mirror = new metamirror\Mirror( $wpdb->postmeta, 'INTEGER' );
+metamirror\Core::add( $mirror );
+metamirror\Core::commit();
+```
+
+**Do not call `Core::commit()` every single time!** Just like `flush_rewrite_rules()` it's only meant to be run after adding new mirrors. The mirrors do have to be added either way, but once they're committed, no need to commit again until changes are made. Every commit will **DROP** all the mirror tables and recreate them.
+
+# Warranty
+
+Absolutely none. **Don't use in production**. Backup before installing or using.
