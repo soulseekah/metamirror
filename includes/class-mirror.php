@@ -120,11 +120,15 @@ class Mirror {
 	 *
 	 * @param string $meta_key The meta_key
 	 *
-	 * @throws metamirror/Error
+	 * @throws metamirror/Error With empty keys, and after `init`.
 	 */
 	public function add_meta_key( string $meta_key ) {
 		if ( empty( $meta_key ) ) {
-			throw Error( 'meta_key cannot be empty' );
+			throw new Error( 'meta_key cannot be empty' );
+		}
+
+		if ( did_action( 'init' ) && ! defined( 'DOING_TESTS' ) ) {
+			throw new Error( 'Cannot add meta keys after `init`.' );
 		}
 
 		$this->whitelist []= $meta_key;
