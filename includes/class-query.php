@@ -78,7 +78,7 @@ class Query {
 	 *
 	 * @param string $string The SQL query.
 	 *
-	 * @return array Not sure yet
+	 * @return array
 	 */
 	public static function parse( string $query ) : array {
 		$result = [
@@ -89,7 +89,11 @@ class Query {
 			'joins'      => [],
 			'subqueries' => [],
 			'parsed'     => false,
+			'literals'   => [],
 		];
+
+		/** Deflate all the string literals, which simplifies parsing. */
+		list( $query, $result['literals'] ) = self::_deflate_string_literals( $query );
 
 		/** First and foremost gobble up the operation */
 		if ( ! preg_match( "#^\s*(SELECT|UPDATE|DELETE)\s+#i", $query, $matches ) ) {
@@ -142,11 +146,7 @@ class Query {
 			}
 
 			/** Joins? */
-			while ( $query ) {
-				if ( ! preg_match( $pattern = "#^((?:LEFT|INNER|OUTER|)JOIN `?)($table_definition)(`?(?:\s+AS)?\s+`?)($table_definition)(`?\s*)#i", $query, $matches ) ) {
-					break;
-				}
-
+			while ( preg_match( $pattern = "#^((?:(?:LEFT|INNER|OUTER)\s+|)JOIN\s+`?)(\w[\d\w]*)(`?(?:\s+AS)?\s+`?)(\w[\d\w]*)(`?\s*)#i", $query, $matches ) ) {
 				$result['joins'] []= [
 					'table' => $matches[2],
 					'alias' => $matches[4],
@@ -165,12 +165,67 @@ class Query {
 			}
 		}
 
-		/** Where */
+		/** Where? */
+		if ( preg_match( '#^(WHERE\s+)#', $query, $matches ) ) {
+			$result['query'] .= $matches[0];
+			$query = substr( $query, strlen( $matches[0] ) );
+
+			while ( preg_match( '#^(?!\(\s*SELECT|GROUP\s+BY|ORDER\s+BY|LIMIT|OFFSET|$)(.*?)(\(\s*(?<subquery>SELECT)|GROUP\s+BY|ORDER\s+BY|LIMIT|OFFSET|$)#', $query, $matches ) ) {
+				$where_conditions = $matches[1];
+
+				/** Parse columns in conditions */
+				while ( $where_conditions ) {
+				}
+
+				$result['query'] .= $where_conditions;
+				$query = substr( $query, strlen( $where_conditions ) );
+
+				/** Parse subquery */
+				if ( ! empty( $matches['subquery'] ) ) {
+					throw new Error( 'Not implemented' );
+				}
+			}
+		}
+
+		var_dump( $query );
 
 		$query = rtrim( $query, ';' );
 
 		$result['parsed'] = strlen( $query ) == 0;
 
 		return $result;
+	}
+
+	/**
+	 * Deflate a SQL query removing all string literals.
+	 *
+	 * @param string $query The deflated SQL query.
+	 * @param string[] $map The map of replacements.
+	 *
+	 * @return string The inflated SQL.
+	 */
+	public static function _deflate_string_literals( string $query ) : array {
+		$pattern = '#(\'|")(.*?)(\1)#';
+
+		$map = [];
+
+		$query = preg_replace_callback( $pattern, function( $matches ) use ( &$map ) {
+			$map[ $id = count( $map ) + 1 ] = $matches[2];
+			return "[[\$literal:$id]]";
+		}, $query );
+
+		return [ $query, $map ];
+	}
+
+	/**
+	 * Inflate a SQL query back with literals.
+	 *
+	 * @param string $query The deflated SQL query.
+	 * @param string[] $map The map of replacements.
+	 *
+	 * @return string The inflated SQL.
+	 */
+	public static function _inflate_string_literals( string $query, array $map ) : string {
+		return $query;
 	}
 }

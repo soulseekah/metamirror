@@ -21,12 +21,24 @@ class Core {
 	private static $mirrors = [];
 
 	/**
-	 * Early initialization.
-	 *
-	 * Adds the needed actions, filters.
+	 * @var callable[] Registered callbacks for `query`.
+	 */
+	private static $query_callbacks = [];
+
+	/**
+	 * Hook into the scariest of places.
 	 */
 	public static function infuse() : void {
-		add_filter( 'query', [ new Query( Core::$mirrors ), 'rewrite' ] );
+		add_filter( 'query', self::$query_callbacks []= [ new Query( Core::$mirrors ), 'rewrite' ] );
+	}
+
+	/**
+	 * Unhook from everywhere.
+	 */
+	public static function diffuse() : void {
+		while ( count( self::$query_callbacks ) ) {
+			remove_filter( 'query', array_pop( self::$query_callbacks ) );
+		}
 	}
 
 	/**
@@ -215,4 +227,6 @@ class Core {
 	}
 }
 
-Core::infuse();
+if ( ! defined( 'DOING_TESTS' ) ) {
+	Core::infuse();
+}
