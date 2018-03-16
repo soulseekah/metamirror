@@ -2,34 +2,33 @@
 namespace metamirror;
 
 class TestQuery extends \WP_UnitTestCase {
-	/**
-	 * @dataProvider get_basic_sql
-	 */
-	public function test_query_basic( $mirrors, $in, $out ) {
-		$query = new Query( $mirrors );
-		$this->assertEquals( $out, $query->rewrite( $in ) );
-	}
+	public function test_parse_basic() {
+		$result = Query::parse( 'SELECT * FROM `table1`' );
+		$this->assertEquals( 'SELECT', $result['operation'] );
+		$this->assertEquals( 'table1', $result['table'] );
 
-	public function get_basic_sql() {
-		global $wpdb;
-		$mirror = new Mirror( $wpdb->postmeta, 'INTEGER' );
+		$result = Query::parse( '  update   od' );
+		$this->assertEquals( 'UPDATE', $result['operation'] );
+		$this->assertEquals( 'od', $result['table'] );
 
-		return [
-			[
-				[ $mirror ],
-				"SELECT * FROM $mirror->meta_table",
-				"SELECT * FROM $mirror->mirror_table"
-			],
-			[
-				[ $mirror ],
-				"SELECT meta_id FROM $mirror->meta_table m1 LEFT JOIN $mirror->meta_table m2 ON m1.meta_id = m2.meta_id",
-				"SELECT meta_id FROM $mirror->mirror_table m1 LEFT JOIN $mirror->mirror_table m2 ON m1.meta_id = m2.meta_id",
-			],
-			[
-				[ $mirror ],
-				"WHERE $mirror->meta_table = $mirror->meta_table",
-				"WHERE $mirror->mirror_table = $mirror->mirror_table",
-			],
-		];
+		$result = Query::parse( "\n\t delete \n from \n table2" );
+		$this->assertEquals( 'DELETE', $result['operation'] );
+		$this->assertEquals( 'table2', $result['table'] );
+
+		$result = Query::parse( 'SELECT * FROM `table1` AS t1' );
+		$this->assertEquals( 'table1', $result['table'] );
+		$this->assertEquals( 't1', $result['alias'] );
+
+		$result = Query::parse( 'SELECT * FROM `table1` AS `t1`' );
+		$this->assertEquals( 'table1', $result['table'] );
+		$this->assertEquals( 't1', $result['alias'] );
+
+		$result = Query::parse( 'SELECT * FROM `table1` AS `t1` WHERE' );
+		$this->assertEquals( 'table1', $result['table'] );
+		$this->assertEquals( 't1', $result['alias'] );
+
+		$result = Query::parse( 'SELECT * FROM `table1` AS t1 ORDER' );
+		$this->assertEquals( 'table1', $result['table'] );
+		$this->assertEquals( 't1', $result['alias'] );
 	}
 }
