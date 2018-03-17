@@ -187,8 +187,6 @@ class Query {
 			}
 		}
 
-		var_dump( $query );
-
 		$query = rtrim( $query, ';' );
 
 		$result['parsed'] = strlen( $query ) == 0;
@@ -205,13 +203,16 @@ class Query {
 	 * @return string The inflated SQL.
 	 */
 	public static function _deflate_string_literals( string $query ) : array {
-		$pattern = '#(\'|")(.*?)(\1)#';
+		$slash = preg_quote( '\\' );
+		$dblqt = preg_quote( '"' );
+		$pattern = "#(?:(')((?:([^'$slash])|$slash.)*)'|($dblqt)((?:([^$dblqt$slash])|$slash.)*)$dblqt)#";
 
 		$map = [];
 
 		$query = preg_replace_callback( $pattern, function( $matches ) use ( &$map ) {
-			$map[ $id = count( $map ) + 1 ] = $matches[2];
-			return "[[\$literal:$id]]";
+			$quote = empty( $matches[4] ) ? "'" : '"';
+			$map[ $id = count( $map ) + 1 ] = $matches[ $quote === "'" ? 2 : 5 ];
+			return "{$quote}[[\$literal:$id]]{$quote}";
 		}, $query );
 
 		return [ $query, $map ];
@@ -226,6 +227,10 @@ class Query {
 	 * @return string The inflated SQL.
 	 */
 	public static function _inflate_string_literals( string $query, array $map ) : string {
-		return $query;
+		$pattern = '#\[\[\$literal:(\d+)\]\]#';
+
+		return preg_replace_callback( $pattern, function( $matches ) use ( &$map ) {
+			return $map[ $matches[1] ];
+		}, $query );
 	}
 }

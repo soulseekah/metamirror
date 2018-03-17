@@ -71,7 +71,7 @@ class TestQuery extends \WP_UnitTestCase {
 	/**
 	 * @dataProvider get_string_literals_flate
 	 */
-	public function test_delfate_string_literals( $deflated, $inflated ) {
+	public function test_deflate_string_literals( $deflated, $inflated ) {
 		$out = Query::_deflate_string_literals( $inflated );
 		$this->assertEquals( $deflated, $out );
 	}
@@ -85,18 +85,35 @@ class TestQuery extends \WP_UnitTestCase {
 	}
 
 	public function get_string_literals_flate() {
+		$slash = '\\';
 		return [
 			[
 				[ 'SELECT * FROM table1', [] ],
 				'SELECT * FROM table1'
 			],
 			[
-				[ 'SELECT * FROM table1 WHERE meta_key = [[$literal:1]]', [ 1 => 'hello' ] ],
+				[ 'SELECT * FROM table1 WHERE meta_key = "[[$literal:1]]"', [ 1 => 'hello' ] ],
 				'SELECT * FROM table1 WHERE meta_key = "hello"'
 			],
 			[
-				[ 'SELECT * FROM table1 WHERE meta_key IN ([[$literal:1]], [[$literal:2]])', [ 1 => 'hello', 2 => 'world' ] ],
+				[ 'SELECT * FROM table1 WHERE meta_key IN ("[[$literal:1]]", \'[[$literal:2]]\')', [ 1 => 'hello', 2 => 'world' ] ],
 				'SELECT * FROM table1 WHERE meta_key IN ("hello", \'world\')'
+			],
+			[
+				[ 'SELECT * FROM table1 WHERE meta_key LIKE "[[$literal:1]]"', [ 1 => '%\"one\'two' ] ],
+				'SELECT * FROM table1 WHERE meta_key LIKE "%\"one\'two"'
+			],
+			[
+				[ 'SELECT REPLACE(meta_value, \'[[$literal:1]]\', "[[$literal:2]]") FROM table1 WHERE meta_key = "[[$literal:3]]"', [ 1 => '"', 2 => "'", 3 => '\"' ] ],
+				'SELECT REPLACE(meta_value, \'"\', "\'") FROM table1 WHERE meta_key = "\""'
+			],
+			[
+				[ 'SELECT "[[$literal:1]]", "[[$literal:2]]"', [ 1 => $slash . $slash, 2 => $slash . "'$slash$slash" ] ],
+				'SELECT "' . $slash . $slash . '", "' . $slash . "'$slash$slash" . '"'
+			],
+			[
+				[ 'WHERE meta_value != "[[$literal:1]]"', [ 1 => '' ] ],
+				'WHERE meta_value != ""'
 			]
 		];
 	}
