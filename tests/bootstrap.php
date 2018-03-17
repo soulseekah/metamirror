@@ -1,10 +1,4 @@
 <?php
-/**
- * PHPUnit bootstrap file
- *
- * @package Hljs_Auth
- */
-
 $_tests_dir = getenv( 'WP_TESTS_DIR' );
 
 if ( ! $_tests_dir ) {
