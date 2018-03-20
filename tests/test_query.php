@@ -2,67 +2,46 @@
 namespace metamirror;
 
 class TestQuery extends \WP_UnitTestCase {
-	public function test_parse_from() {
-		$result = Query::parse( 'SELECT * FROM `table1`' );
-		$this->assertEquals( 'SELECT', $result['operation'] );
-		$this->assertEquals( 'table1', $result['table'] );
-		$this->assertTrue( $result['parsed'] );
+	/**
+	 * @dataProvider get_parse_from
+	 */
+	public function test_parse_from( $query, $operation, $tables, $parsed ) {
+		$result = Query::parse( $query );
+		$this->assertEquals( $operation, $result['operation'] );
+		$this->assertEquals( $tables, $result['tables'] );
+		$this->assertEquals( $parsed, $result['parsed'] );
+	}
 
-		$result = Query::parse( '  update   od' );
-		$this->assertEquals( 'UPDATE', $result['operation'] );
-		$this->assertEquals( 'od', $result['table'] );
-		$this->assertTrue( $result['parsed'] );
+	public function get_parse_from() {
+		return [
+			[ " \nSELECT\ncolumn, column\n FROM  `table1`"  , 'SELECT', [ 'table1' => 'table1' ], true ],
+			[ 'SELECT * FROM `table1` AS t1', 'SELECT', [ 't1' => 'table1' ], true ],
+			[ 'SELECT * FROM `table1` AS `t1`', 'SELECT', [ 't1' => 'table1' ], true ],
+			[ 'SELECT * FROM `table1` AS `t1` WHERE', 'SELECT', [ 't1' => 'table1' ], false ],
+			[ 'SELECT * FROM `table1` AS `t1` ORDER', 'SELECT', [ 't1' => 'table1' ], false ],
+			[ 'SELECT * FROM `table1` WHERE', 'SELECT', [ 'table1' => 'table1' ], false ],
+			[ 'SELECT * FROM `table1`, `table2` OFFSET', 'SELECT', [ 'table1' => 'table1', 'table2' => 'table2' ], false ],
+			[ 'SELECT * FROM `table1` AS a, table2 `b` LIMIT', 'SELECT', [ 'a' => 'table1', 'b' => 'table2' ], false ],
+			[ 'SELECT * FROM `table1` AS m, `tables2` `p`, tables4 AS `z`', 'SELECT', [ 'm' => 'table1', 'p' => 'tables2', 'z' => 'tables4' ], true ],
 
-		$result = Query::parse( "\n\t delete \n from \n table2" );
-		$this->assertEquals( 'DELETE', $result['operation'] );
-		$this->assertEquals( 'table2', $result['table'] );
-		$this->assertTrue( $result['parsed'] );
-
-		$result = Query::parse( 'SELECT * FROM `table1` AS t1' );
-		$this->assertEquals( 'table1', $result['table'] );
-		$this->assertEquals( 't1', $result['alias'] );
-		$this->assertTrue( $result['parsed'] );
-
-		$result = Query::parse( 'SELECT * FROM `table1` AS `t1`' );
-		$this->assertEquals( 'table1', $result['table'] );
-		$this->assertEquals( 't1', $result['alias'] );
-		$this->assertTrue( $result['parsed'] );
-
-		$result = Query::parse( 'SELECT * FROM `table1` AS `t1` WHERE' );
-		$this->assertEquals( 'table1', $result['table'] );
-		$this->assertEquals( 't1', $result['alias'] );
-		$this->assertFalse( $result['parsed'] );
-
-		$result = Query::parse( 'SELECT * FROM `table1` AS t1 ORDER' );
-		$this->assertEquals( 'table1', $result['table'] );
-		$this->assertEquals( 't1', $result['alias'] );
-		$this->assertFalse( $result['parsed'] );
-
-		$result = Query::parse( 'SELECT * FROM `table1` WHERE' );
-		$this->assertEquals( 'table1', $result['table'] );
-		$this->assertEmpty( '', $result['alias'] );
-		$this->assertFalse( $result['parsed'] );
-
-		$result = Query::parse( 'SELECT * FROM `table1` JOIN table4 t ON post_id = t.post_id' );
-		$this->assertEquals( 'table1', $result['table'] );
-		$this->assertEmpty( '', $result['alias'] );
-		$this->assertTrue( $result['parsed'] );
+			[ 'UPDATE table1 SET', 'UPDATE', [ 'table1' => 'table1' ], false ],
+			[ 'DELETE FROM table2 WHERE', 'DELETE', [ 'table2' => 'table2' ], false ],
+			[ 'DELETE table2 FROM table2 LEFT JOIN table1 b ON id = id;', 'DELETE', [ 'table2' => 'table2', 'b' => 'table1' ], true ],
+		];
 	}
 
 	public function test_parse_join() {
 		$result = Query::parse( 'SELECT * FROM `table1` JOIN table4 t ON post_id = t.post_id;' );
-		$this->assertEquals( 'table1', $result['table'] );
-		$joins = [ [ 'table' => 'table4', 'alias' => 't' ] ];
-		$this->assertEqualSets( $joins, $result['joins'] );
+		$tables = [ 'table1' => 'table1', 't' => 'table4' ];
+		$this->assertEqualSets( $tables, $result['tables'] );
 		$this->assertTrue( $result['parsed'] );
 		$this->assertEquals( 'SELECT * FROM `[[$table:table1]]` JOIN [[$table:table4]] t ON post_id = t.post_id', $result['query'] );
 	}
 
 	public function test_parse_join_multi() {
 		$result = Query::parse( 'SELECT * FROM `table1` JOIN table4 t ON post_id = t.post_id LEFT JOIN table5 AS t_45 ON col1 != col3;' );
-		$this->assertEquals( 'table1', $result['table'] );
-		$joins = [ [ 'table' => 'table4', 'alias' => 't' ], [ 'table' => 'table5', 'alias' => 't_45' ] ];
-		$this->assertEqualSets( $joins, $result['joins'] );
+		$tables = [ 'table1' => 'table1', 't' => 'table4', 't_45' => 'table5' ];
+		$this->assertEqualSets( $tables, $result['tables'] );
 		$this->assertTrue( $result['parsed'] );
 		$expected = 'SELECT * FROM `[[$table:table1]]` JOIN [[$table:table4]] t ON post_id = t.post_id LEFT JOIN [[$table:table5]] AS t_45 ON col1 != col3';
 		$this->assertEquals( $expected, $result['query'] );

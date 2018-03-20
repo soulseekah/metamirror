@@ -82,14 +82,12 @@ class Query {
 	 */
 	public static function parse( string $query ) : array {
 		$result = [
-			'query'      => '',
 			'operation'  => '',
-			'table'      => '',
-			'alias'      => '',
-			'joins'      => [],
+			'tables'     => [],
 			'subqueries' => [],
-			'parsed'     => false,
 			'literals'   => [],
+			'parsed'     => false,
+			'query'      => '',
 		];
 
 		/** Deflate all the string literals, which simplifies parsing. */
@@ -109,60 +107,67 @@ class Query {
 		$table_definition  = '\w[\d\w]*';
 		$column_definition = "(?:$table_definition\.)?$table_definition";
 		$operator          = '(?:\!?=|(?:NOT\s+)?LIKE|IS\s+(?:NOT\s+))';
+		$keywords          = 'JOIN|LEFT|INNER|OUTER|WHERE|ORDER|LIMIT|OFFSET|SET|VALUES';
 
-		/** Main table */
 		switch ( $result['operation'] ):
 			case 'SELECT':
-				if ( ! preg_match( $pattern = "#^(\S*\s+FROM\s+`?)($table_definition)(`?\s*)#i", $query, $matches ) ) {
+				if ( ! preg_match( "#^.*?\s+FROM\s+#i", $query, $matches ) ) {;
 					return $result;
 				}
-				break;
+
+				$result['query'] .= $matches[0];
+				$query = substr( $query, strlen( $matches[0] ) );
+				/** fallthrough */
 			case 'UPDATE':
-				if ( ! preg_match( $pattern = "#^(`?)($table_definition)(`?\s*)#i", $query, $matches ) ) {
-					return $result;
+				$alias = "(?:AS\s+)?(?!$keywords)(`?)($table_definition)(`?\s*)";
+
+				while ( $query ) {
+					if ( ! preg_match( $pattern = "#^(?!$keywords)(`?)($table_definition)(`?\s*(?:$alias)?(,?)\s*)#i", $query, $matches ) ) {
+						break;
+					}
+
+					$before_table = $matches[1];
+					$table        = $matches[2];
+					$after_table  = $matches[3];
+
+					$result['tables'][ $matches[5] ? : $table ] = $table;
+
+					/** Wrap the table in a marker for replacement later on. */
+					$result['query'] .= preg_replace( $pattern, '\1[[$table:\2]]\3', $matches[0] );
+					$query = substr( $query, strlen( $matches[0] ) );
 				}
+
 				break;
 			case 'DELETE':
-				if ( ! preg_match( $pattern = "#^(FROM\s+`?)($table_definition)(`?s*)#i", $query, $matches ) ) {
+				if ( ! preg_match( $pattern = "#^(.*?FROM\s+`?)($table_definition)(`?\s*)#i", $query, $matches ) ) {
 					return $result;
 				}
+
+				$result['tables'][ $matches[2] ] = $matches[2];
+
+				/** Wrap the table in a marker for replacement later on. */
+				$result['query'] .= preg_replace( $pattern, '\1[[$table:\2]]\3', $matches[0] );
+				$query = substr( $query, strlen( $matches[0] ) );
+
 				break;
 			default:
 				return $result;
 		endswitch;
 
-		$result['table'] = $matches[2];
+		/** Joins? */
+		while ( preg_match( $pattern = "#^((?:(?:LEFT|INNER|OUTER)\s+|)JOIN\s+`?)(\w[\d\w]*)(`?(?:\s+AS)?\s+`?)(\w[\d\w]*)(`?\s*)#i", $query, $matches ) ) {
+			$result['tables'][ $matches[4] ] = $matches[2];
 
-		/** Wrap the table in a marker for replacement later on. */
-		$result['query'] .= preg_replace( $pattern, '\1[[$table:\2]]\3', $matches[0] );
-		$query = substr( $query, strlen( $matches[0] ) );
+			$result['query'] .= preg_replace( $pattern, '\1[[$table:\2]]\3\4\5', $matches[0] );
+			$query = substr( $query, strlen( $matches[0] ) );
 
-		if ( 'SELECT' == $result['operation'] ) {
-			/** Alias? */
-			if ( preg_match( "#^(?:AS\s+)?`?(?!JOIN|LEFT|INNER|OUTER|WHERE|ORDER|LIMIT)($table_definition)`?s*#i", $query, $matches ) ) {
-				$result['alias'] = $matches[1];
-				$result['query'] .= $matches[0];
-				$query = substr( $query, strlen( $matches[0] ) );
+			/** Goobble up the rest... */
+			if ( ! preg_match( "#^ON\s+(:?$column_definition)\s+$operator\s+(?:$column_definition)\s*#i", $query, $matches ) ) {
+				break;
 			}
 
-			/** Joins? */
-			while ( preg_match( $pattern = "#^((?:(?:LEFT|INNER|OUTER)\s+|)JOIN\s+`?)(\w[\d\w]*)(`?(?:\s+AS)?\s+`?)(\w[\d\w]*)(`?\s*)#i", $query, $matches ) ) {
-				$result['joins'] []= [
-					'table' => $matches[2],
-					'alias' => $matches[4],
-				];
-
-				$result['query'] .= preg_replace( $pattern, '\1[[$table:\2]]\3\4\5', $matches[0] );
-				$query = substr( $query, strlen( $matches[0] ) );
-
-				/** Goobble up the rest... */
-				if ( ! preg_match( "#^ON\s+(:?$column_definition)\s+$operator\s+(?:$column_definition)\s*#i", $query, $matches ) ) {
-					break;
-				}
-
-				$result['query'] .= $matches[0];
-				$query = substr( $query, strlen( $matches[0] ) );
-			}
+			$result['query'] .= $matches[0];
+			$query = substr( $query, strlen( $matches[0] ) );
 		}
 
 		/** Where? */
