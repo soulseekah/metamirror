@@ -97,8 +97,48 @@ class TestQuery extends \WP_UnitTestCase {
 		];
 	}
 
+	/**
+	 * @dataProvider get_is_literal
+	 */
+	public function test_is_literal( $sql, $is_literal ) {
+		$this->assertEquals( $is_literal, Query::_is_literal( $sql ) );
+	}
+
+	public function get_is_literal() {
+		return [
+			[ '1', true ],
+			[ '"[[$literal:3]]"', true ],
+			[ "'[[\$literal:3]]'", true ],
+			[ 'meta_key', false ],
+		];
+	}
+
 	public function test_parse_where() {
 		$result = Query::parse( 'SELECT * FROM `table1` WHERE `table1`.`meta_key` = 4 AND meta_value < 100;' );
+		$expected = 'SELECT * FROM `[[$table:table1]]` WHERE [[$column:`table1`.`meta_key`]] = 4 AND [[$column:meta_value]] < 100';
+		$this->assertEquals( $expected, $result['query'] );
+		$this->assertTrue( $result['parsed'] );
+
+		$result = Query::parse( 'SELECT * FROM `table1` WHERE `table1`.`meta_key` IN (4,4) OR post_name LIKE "%AND LIKE" LIMIT 1;' );
+		$expected = 'SELECT * FROM `[[$table:table1]]` WHERE [[$column:`table1`.`meta_key`]] IN (4,4) OR [[$column:post_name]] LIKE "[[$literal:1]]" LIMIT 1;';
+		$this->assertEquals( $expected, $result['query'] );
+		$this->assertTrue( $result['parsed'] );
+
+		$result = Query::parse( 'SELECT * FROM `table1` WHERE 1 = 1 AND `table1`.`meta_key` IN (4,4) OR post_name LIKE "%AND LIKE" LIMIT 1;' );
+		$expected = 'SELECT * FROM `[[$table:table1]]` WHERE 1 = 1 AND [[$column:`table1`.`meta_key`]] IN (4,4) OR [[$column:post_name]] LIKE "[[$literal:1]]" LIMIT 1;';
+		$this->assertEquals( $expected, $result['query'] );
+		$this->assertTrue( $result['parsed'] );
+	}
+	
+	public function test_parse_group_order() {
+		$result = Query::parse( 'SELECT * FROM `table1` WHERE a = 4 GROUP BY a, b ORDER BY  m3.meta_key;' );
+		$expected = 'SELECT * FROM `[[$table:table1]]` WHERE [[$column:a]] = 4 GROUP BY [[$column:a]], [[$column:b]] ORDER BY  [[$column:m3.meta_key]]';
+		$this->assertEquals( $expected, $result['query'] );
+		$this->assertTrue( $result['parsed'] );
+
+		$result = Query::parse( 'SELECT * FROM `table1` WHERE a = 4 GROUP BY a, b ORDER BY m3.meta_value ASC, m4.meta_value DESC;' );
+		$expected = 'SELECT * FROM `[[$table:table1]]` WHERE [[$column:a]] = 4 GROUP BY [[$column:a]], [[$column:b]] ORDER BY [[$column:m3.meta_value]] ASC, [[$column:m4.meta_value]] DESC';
+		$this->assertEquals( $expected, $result['query'] );
 		$this->assertTrue( $result['parsed'] );
 	}
 }

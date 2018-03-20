@@ -171,27 +171,79 @@ class Query {
 		}
 
 		/** Where? */
-		if ( preg_match( '#^(WHERE\s+)#', $query, $matches ) ) {
+		if ( preg_match( '#^WHERE\s+#i', $query, $matches ) ) {
 			$result['query'] .= $matches[0];
 			$query = substr( $query, strlen( $matches[0] ) );
 
 			$keywords = 'GROUP\s+BY|ORDER\s+BY|LIMIT|OFFSET';
 
-			while ( preg_match( "#^(?!\(\s*SELECT|$keywords|$)(AND\s+|OR\s+)?(.+?)(\(\s*(?<subquery>SELECT)|$keywords|AND|OR|;?$)\s*#", $query, $matches ) ) {
-				$where_condition = $matches[2];
+			while ( preg_match( "#^(?!\(\s*SELECT|$keywords|$)(AND\s+|OR\s+)?(.+?)(\(\s*(:?<subquery>SELECT)|$keywords|AND|OR|;?$)\s*#i", $query, $matches ) ) {
+				$where_condition = $matches[2]; 
 
 				if ( ! preg_match( "#^($column_definition)(\s+$operator.*)#", $where_condition, $submatches ) ) {
 					break;
 				}
 
-				$result['query'] .= $matches[1] . '[[$column:' . $submatches[1] . ']]' . $submatches[2];
-				$query = substr( $query, strlen( $matches[0] ) );
+				$column = self::_is_literal( $submatches[1] ) ? $submatches[1] : '[[$column:' . $submatches[1] . ']]';
+
+				$result['query'] .= $matches[1] . $column . $submatches[2];
+				$query = substr( $query, strlen( $matches[1] . $submatches[0] ) );
 
 				/** Parse subquery */
 				if ( ! empty( $matches['subquery'] ) ) {
-					throw new Error( 'Not implemented' );
+					throw new Error( 'Not implemented yet' );
 				}
 			}
+		}
+
+		/** Group */
+		if ( preg_match( '#^GROUP\s+BY\s+#i', $query, $matches ) ) { 
+			$result['query'] .= $matches[0];
+			$query = substr( $query, strlen( $matches[0] ) );
+
+			if ( preg_match( '#^(.+?)(\s*)(?:ORDER\s+BY.*|LIMIT.*|OFFSET.*|;?$);?$#', $query, $matches ) ) {
+				$columns = [];
+				foreach ( explode( ',', $matches[1] ) as $column ) {
+					if ( ! preg_match( "#^(\s*)($column_definition)(\s*)#i", $column, $submatches ) ) {
+						break;
+					}
+
+					$columns[] = $submatches[1]
+						. ( self::_is_literal( $submatches[2] ) ? $submatches[2] : '[[$column:' . $submatches[2] . ']]' )
+						. $submatches[3];
+				}
+
+				$result['query'] .= implode( ',', $columns ) . $matches[2];
+				$query = substr( $query, strlen( $matches[1] . $matches[2] ) );
+			}
+		}
+
+		/** Order */
+		if ( preg_match( '#^ORDER\s+BY\s+#i', $query, $matches ) ) { 
+			$result['query'] .= $matches[0];
+			$query = substr( $query, strlen( $matches[0] ) );
+
+			if ( preg_match( '#^(.+?)(\s*)(?:LIMIT.*|OFFSET.*|;?$);?$#', $query, $matches ) ) {
+				$columns = [];
+				foreach ( explode( ',', $matches[1] ) as $column ) {
+					if ( ! preg_match( "#^(\s*)($column_definition)(\s+ASC|\s+DESC|)(\s*)#i", $column, $submatches ) ) {
+						break;
+					}
+
+					$columns[] = $submatches[1]
+						. ( self::_is_literal( $submatches[2] ) ? $submatches[2] : '[[$column:' . $submatches[2] . ']]' )
+						. $submatches[3];
+				}
+
+				$result['query'] .= implode( ',', $columns ) . $matches[2];
+				$query = substr( $query, strlen( $matches[1] . $matches[2] ) );
+			}
+		}
+
+		/** Limit, offset */
+		if ( preg_match( '#^(LIMIT\s+|OFFSET\s+).+;?$#i', $query, $matches ) ) {
+			$result['query'] .= $matches[0];
+			$query = substr( $query, strlen( $matches[0] ) );
 		}
 
 		$query = rtrim( $query, ';' );
@@ -203,6 +255,8 @@ class Query {
 
 	/**
 	 * Deflate a SQL query removing all string literals.
+	 *
+	 * @internal
 	 *
 	 * @param string $query The deflated SQL query.
 	 * @param string[] $map The map of replacements.
@@ -228,6 +282,8 @@ class Query {
 	/**
 	 * Inflate a SQL query back with literals.
 	 *
+	 * @internal
+	 *
 	 * @param string $query The deflated SQL query.
 	 * @param string[] $map The map of replacements.
 	 *
@@ -239,5 +295,25 @@ class Query {
 		return preg_replace_callback( $pattern, function( $matches ) use ( &$map ) {
 			return $map[ $matches[1] ];
 		}, $query );
+	}
+
+	/**
+	 * Whether this string seems to be a literal or not.
+	 *
+	 * @internal
+	 *
+	 * @param string $sql The string to analyze.
+	 *
+	 * @return bool Yes or no?
+	 */
+	public static function _is_literal( string $sql ) : bool {
+		if ( is_numeric( $sql ) ) {
+			return true;
+		}
+
+		if ( preg_match( '#^(\'|")\[\[\$literal.\d+\]\]\1$#', $sql ) ) {
+			return true;
+		}
+		return false;
 	}
 }
