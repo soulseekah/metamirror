@@ -98,7 +98,7 @@ class TestQuery extends \WP_UnitTestCase {
 	}
 
 	public function test_parse_where() {
-		$result = Query::parse( 'SELECT * FROM `table1` WHERE meta_key = 4 AND meta_value < 100;' );
+		$result = Query::parse( 'SELECT * FROM `table1` WHERE `table1`.`meta_key` = 4 AND meta_value < 100;' );
 		$this->assertTrue( $result['parsed'] );
 	}
 }

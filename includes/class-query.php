@@ -105,8 +105,8 @@ class Query {
 
 		/** Generic patterns. */
 		$table_definition  = '\w[\d\w]*';
-		$column_definition = "(?:$table_definition\.)?$table_definition";
-		$operator          = '(?:\!?=|(?:NOT\s+)?LIKE|IS\s+(?:NOT\s+))';
+		$column_definition = "`?(?:$table_definition`?\.)?`?$table_definition`?";
+		$operator          = '(?:\!?=|[<>=]+|(?:NOT\s+)?LIKE|IS\s+(?:NOT\s+)|(?:NOT\s+)?(?:EXISTS|IN)\s+\()';
 		$keywords          = 'JOIN|LEFT|INNER|OUTER|WHERE|ORDER|LIMIT|OFFSET|SET|VALUES';
 
 		switch ( $result['operation'] ):
@@ -175,15 +175,17 @@ class Query {
 			$result['query'] .= $matches[0];
 			$query = substr( $query, strlen( $matches[0] ) );
 
-			while ( preg_match( '#^(?!\(\s*SELECT|GROUP\s+BY|ORDER\s+BY|LIMIT|OFFSET|$)(.*?)(\(\s*(?<subquery>SELECT)|GROUP\s+BY|ORDER\s+BY|LIMIT|OFFSET|$)#', $query, $matches ) ) {
-				$where_conditions = $matches[1];
+			$keywords = 'GROUP\s+BY|ORDER\s+BY|LIMIT|OFFSET';
 
-				/** Parse columns in conditions */
-				while ( $where_conditions ) {
+			while ( preg_match( "#^(?!\(\s*SELECT|$keywords|$)(AND\s+|OR\s+)?(.+?)(\(\s*(?<subquery>SELECT)|$keywords|AND|OR|;?$)\s*#", $query, $matches ) ) {
+				$where_condition = $matches[2];
+
+				if ( ! preg_match( "#^($column_definition)(\s+$operator.*)#", $where_condition, $submatches ) ) {
+					break;
 				}
 
-				$result['query'] .= $where_conditions;
-				$query = substr( $query, strlen( $where_conditions ) );
+				$result['query'] .= $matches[1] . '[[$column:' . $submatches[1] . ']]' . $submatches[2];
+				$query = substr( $query, strlen( $matches[0] ) );
 
 				/** Parse subquery */
 				if ( ! empty( $matches['subquery'] ) ) {
